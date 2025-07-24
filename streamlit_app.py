@@ -1,86 +1,67 @@
 import streamlit as st
 import pandas as pd
-import dateparser
-import re
+from io import StringIO
 
-st.set_page_config(page_title="Chat Leave Bot", layout="centered")
-st.title("🤖 Watsonx-style Chat Leave Assistant")
+st.set_page_config(page_title="AI Leave Bot", layout="centered")
+st.title("🧠 Leave Request Automation Bot")
 
 # Load employee data
 try:
     df = pd.read_csv("employee_data.csv")
 except FileNotFoundError:
-    st.error("⚠️ 'employee_data.csv' not found.")
+    st.error("⚠️ 'employee_data.csv' not found. Please upload the file to proceed.")
     st.stop()
 
-# Initialize session state
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-if "employee_name" not in st.session_state:
-    st.session_state.employee_name = None
+# Optional: View employee list
+with st.expander("📋 View Employee Data"):
+    st.dataframe(df)
 
-# Show previous messages
-for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.write(msg["content"])
+# Simulated leave history
+leave_history = []
 
-# Chat input
-user_input = st.chat_input("Type something like: I want leave from August 5 to 7")
+with st.form("leave_form"):
+    name = st.text_input("👤 Employee Name")
+    leave_days = st.number_input("📅 Leave Days", min_value=1, max_value=30)
+    reason = st.text_area("✍️ Reason for Leave")
+    submit = st.form_submit_button("✅ Submit Request")
 
-if user_input:
-    st.session_state.messages.append({"role": "user", "content": user_input})
-    with st.chat_message("user"):
-        st.write(user_input)
-
-    response = ""
-
-    # Extract name if not set
-    if not st.session_state.employee_name:
-        name_match = re.search(r"my name is (\w+)", user_input, re.IGNORECASE)
-        if name_match:
-            name = name_match.group(1).strip()
-            emp = df[df["Name"].str.lower() == name.lower()]
-            if emp.empty:
-                response = f"❌ Sorry, I couldn’t find employee named '{name}'. Try again."
-            else:
-                st.session_state.employee_name = name
-                response = f"✅ Welcome, {name.title()}! Now tell me your leave details."
-        else:
-            response = "👋 Hi! Before we proceed, please tell me your name like: 'My name is Aayush'."
-
+if submit:
+    emp = df[df["Name"].str.lower() == name.lower()]
+    if emp.empty:
+        st.error("❌ Employee not found.")
     else:
-        # If name is set, extract leave dates and reason
-        emp = df[df["Name"].str.lower() == st.session_state.employee_name.lower()].iloc[0]
-        used = emp["Used Leaves"]
-        total = emp["Total Leaves"]
+        used = emp["Used Leaves"].values[0]
+        total = emp["Total Leaves"].values[0]
         balance = total - used
 
-        # Parse dates
-        dates = re.findall(r"(?:from|between)?\s*(\w+\s+\d{1,2})\s*(?:to|-)?\s*(\w+\s+\d{1,2})?", user_input, re.IGNORECASE)
-        reason_match = re.search(r"for (.+)", user_input, re.IGNORECASE)
+        st.info(f"🧾 Total Leaves: {total} | Used: {used} | Balance: {balance}")
 
-        if dates:
-            start_date = dateparser.parse(dates[0][0])
-            end_date = dateparser.parse(dates[0][1]) if dates[0][1] else start_date
-            days_requested = (end_date - start_date).days + 1
-
-            reason = reason_match.group(1) if reason_match else "No reason provided"
-
-            if days_requested <= balance:
-                response = (
-                    f"✅ Leave Approved for {st.session_state.employee_name.title()} from "
-                    f"{start_date.strftime('%b %d')} to {end_date.strftime('%b %d')} "
-                    f"({days_requested} days). Reason: {reason}.\n"
-                    f"🧾 Remaining leave balance: {balance - days_requested}"
-                )
-            else:
-                response = (
-                    f"❌ Not enough leave balance. You have only {balance} leave(s), "
-                    f"but requested {days_requested} day(s)."
-                )
+        if leave_days <= balance:
+            st.success(f"✅ Leave Approved. Remaining balance: {balance - leave_days}")
+            # Add to leave history (in-memory for now)
+            leave_history.append({
+                "Name": name.title(),
+                "Days": leave_days,
+                "Reason": reason,
+                "Status": "Approved"
+            })
         else:
-            response = "📅 I couldn't understand the leave dates. Try saying: 'Leave from August 5 to August 7 for family function.'"
+            st.error(f"❌ Rejected. Only {balance} leave(s) remaining.")
+            leave_history.append({
+                "Name": name.title(),
+                "Days": leave_days,
+                "Reason": reason,
+                "Status": "Rejected"
+            })
 
-    st.session_state.messages.append({"role": "assistant", "content": response})
-    with st.chat_message("assistant"):
-        st.write(response)
+# Optional: View leave history
+if leave_history:
+    st.subheader("📜 Leave Request History")
+    st.table(pd.DataFrame(leave_history))
+
+    # Allow download as text
+    if st.button("⬇️ Download Summary"):
+        history_df = pd.DataFrame(leave_history)
+        output = StringIO()
+        history_df.to_csv(output, index=False)
+        st.download_button("Download CSV", data=output.getvalue(), file_name="leave_summary.csv", mime="text/csv")
