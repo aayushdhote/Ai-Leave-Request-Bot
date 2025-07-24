@@ -1,7 +1,7 @@
 import streamlit as st 
 import pandas as pd
 
-st.title("🧠 Leave Request Automation Bot")
+st.title("🤖 Leave Request Automation Bot")
 
 df = pd.read_csv("employee_data.csv")
 
