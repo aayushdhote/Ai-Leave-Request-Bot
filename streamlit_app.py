@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from io import StringIO
 
+
 st.set_page_config(page_title="AI Leave Bot", layout="centered")
 st.title("🧠 Leave Request Automation Bot")
 
