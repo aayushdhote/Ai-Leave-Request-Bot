@@ -25,7 +25,6 @@ with st.form("leave_form"):
     reason = st.text_area("✍️ Reason for Leave")
     submit = st.form_submit_button("✅ Submit Request")
 
-
 if submit:
     emp = df[df["Name"].str.lower() == name.lower()]
     if emp.empty:
